@@ -22,6 +22,7 @@ def allowed_file(filename):
 
 # --- GOOGLE DRIVE FILE IDS ---
 DRIVE_MODELS = {
+    'alexnet_finetuned_best.keras': '1Ew2gdZxI32jseM72IloYxSb6MN2mXgob',
     'densenet_trained_model.keras': '1_irHVLn-OqNSHlq1Hn5Km8Bj7wSU8_5i',
     'best_resnet50_model.keras': '1RYLk_pZ9EZTcSMjUDLv7Fzn3hnw_XRmg',
     'mobilenetv2_trained_model.keras': '1hoZZ7OO2yxOmYG6EQ73MA05mSsZLLWUT'
@@ -42,6 +43,11 @@ with open('class_indices.json', 'r') as f:
 idx_to_class = {v: k for k, v in class_indices.items()}
 
 MODELS = {
+    'alexnet': {
+        'model': tf.keras.models.load_model('alexnet_finetuned_best.keras'),
+        'preprocess': lambda x: x / 255.0,
+        'input_size': (227, 227)
+    },
     'densenet': {
         'model': tf.keras.models.load_model('densenet_trained_model.keras'),
         'preprocess': tf.keras.applications.densenet.preprocess_input,
@@ -86,7 +92,7 @@ def index():
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         file.save(filepath)
 
-        # Preprocess image dynamically based on model
+        # Preprocess image
         input_size = model_data['input_size']
         img = image.load_img(filepath, target_size=input_size)
         x = image.img_to_array(img)
@@ -104,7 +110,7 @@ def index():
             pred_class = idx_to_class[top_idx]
             confidence = f"{top_conf * 100:.2f}%"
 
-    # Sort models alphabetically for dropdown
+    # Sort models for dropdown
     sorted_models = dict(sorted(MODELS.items()))
 
     return render_template('index.html',
