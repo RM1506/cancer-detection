@@ -6,25 +6,20 @@ from werkzeug.utils import secure_filename
 import tensorflow as tf
 from tensorflow.keras.preprocessing import image
 
-# --- CONFIG ---
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 CONFIDENCE_THRESHOLD = 0.70
 
-# --- APP SETUP ---
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# --- UTILITIES ---
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# --- LOAD MODELS & CLASS INDICES ---
 with open('class_indices.json', 'r') as f:
     class_indices = json.load(f)
 idx_to_class = {v: k for k, v in class_indices.items()}
 
-# --- CLASS NAME MAPPING ---
 short_to_full = {
     "colon_aca": "Colon adenocarcinoma",
     "colon_n": "Colon benign tissue",
@@ -33,26 +28,28 @@ short_to_full = {
     "lung_scc": "Lung squamous cell carcinoma"
 }
 
-MODELS = {
+# Models with human-readable names
+model_definitions = {
     'alexnet': {
+        'name': 'AlexNet',
         'model': tf.keras.models.load_model('alexnet_best_model.keras'),
         'preprocess': lambda x: x / 255.0,
         'input_size': (227, 227)
     },
     'densenet': {
+        'name': 'DenseNet121',
         'model': tf.keras.models.load_model('densenet121_best_model.keras'),
         'preprocess': tf.keras.applications.densenet.preprocess_input,
         'input_size': (224, 224)
     },
     'mobilenetv2': {
+        'name': 'MobileNetV2',
         'model': tf.keras.models.load_model('mobilenetv2_best_model.keras'),
         'preprocess': tf.keras.applications.mobilenet_v2.preprocess_input,
         'input_size': (224, 224)
     }
-    # Removed 'resnet50'
 }
 
-# --- ROUTES ---
 @app.route('/', methods=['GET', 'POST'])
 def index():
     pred_class = None
@@ -63,7 +60,7 @@ def index():
 
     if request.method == 'POST':
         selected_model = request.form.get('model')
-        model_data = MODELS.get(selected_model)
+        model_data = model_definitions.get(selected_model)
 
         if not model_data:
             warning = "Invalid model selection."
@@ -79,14 +76,12 @@ def index():
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         file.save(filepath)
 
-        # Preprocess image
         input_size = model_data['input_size']
         img = image.load_img(filepath, target_size=input_size)
         x = image.img_to_array(img)
         x = np.expand_dims(x, axis=0)
         x = model_data['preprocess'](x)
 
-        # Predict
         preds = model_data['model'].predict(x)[0]
         top_idx = np.argmax(preds)
         top_conf = preds[top_idx]
@@ -98,14 +93,16 @@ def index():
             pred_class = short_to_full.get(pred_class_short, pred_class_short)
             confidence = f"{top_conf * 100:.2f}%"
 
-    sorted_models = dict(sorted(MODELS.items()))
+    # Just pass model_key => readable_name to HTML
+    model_display_names = {key: data['name'] for key, data in model_definitions.items()}
+
     return render_template('index.html',
                            filename=filename,
                            pred_class=pred_class,
                            confidence=confidence,
                            warning=warning,
                            selected_model=selected_model,
-                           models=sorted_models.keys())
+                           models=model_display_names)
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
