@@ -5,7 +5,6 @@ from flask import Flask, request, render_template, redirect, url_for
 from werkzeug.utils import secure_filename
 import tensorflow as tf
 from tensorflow.keras.preprocessing import image
-import gdown
 
 # --- CONFIG ---
 UPLOAD_FOLDER = 'static/uploads'
@@ -20,49 +19,37 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# --- GOOGLE DRIVE FILE IDS ---
-DRIVE_MODELS = {
-    'alexnet_finetuned_best.keras': '1Ew2gdZxI32jseM72IloYxSb6MN2mXgob',
-    'densenet_trained_model.keras': '1_irHVLn-OqNSHlq1Hn5Km8Bj7wSU8_5i',
-    'best_resnet50_model.keras': '1RYLk_pZ9EZTcSMjUDLv7Fzn3hnw_XRmg',
-    'mobilenetv2_trained_model.keras': '1hoZZ7OO2yxOmYG6EQ73MA05mSsZLLWUT'
-}
-
-def download_from_drive(filename, file_id):
-    if not os.path.exists(filename):
-        url = f"https://drive.google.com/uc?id={file_id}"
-        gdown.download(url, filename, quiet=False)
-
-# --- DOWNLOAD MODELS FROM DRIVE IF NOT EXISTS ---
-for model_filename, file_id in DRIVE_MODELS.items():
-    download_from_drive(model_filename, file_id)
-
 # --- LOAD MODELS & CLASS INDICES ---
 with open('class_indices.json', 'r') as f:
     class_indices = json.load(f)
 idx_to_class = {v: k for k, v in class_indices.items()}
 
+# --- CLASS NAME MAPPING ---
+short_to_full = {
+    "colon_aca": "Colon adenocarcinoma",
+    "colon_n": "Colon benign tissue",
+    "lung_aca": "Lung adenocarcinoma",
+    "lung_n": "Lung benign tissue",
+    "lung_scc": "Lung squamous cell carcinoma"
+}
+
 MODELS = {
     'alexnet': {
-        'model': tf.keras.models.load_model('alexnet_finetuned_best.keras'),
+        'model': tf.keras.models.load_model('alexnet_best_model.keras'),
         'preprocess': lambda x: x / 255.0,
         'input_size': (227, 227)
     },
     'densenet': {
-        'model': tf.keras.models.load_model('densenet_trained_model.keras'),
+        'model': tf.keras.models.load_model('densenet121_best_model.keras'),
         'preprocess': tf.keras.applications.densenet.preprocess_input,
         'input_size': (224, 224)
     },
     'mobilenetv2': {
-        'model': tf.keras.models.load_model('mobilenetv2_trained_model.keras'),
+        'model': tf.keras.models.load_model('mobilenetv2_best_model.keras'),
         'preprocess': tf.keras.applications.mobilenet_v2.preprocess_input,
         'input_size': (224, 224)
-    },
-    'resnet50': {
-        'model': tf.keras.models.load_model('best_resnet50_model.keras'),
-        'preprocess': tf.keras.applications.resnet50.preprocess_input,
-        'input_size': (224, 224)
     }
+    # Removed 'resnet50'
 }
 
 # --- ROUTES ---
@@ -107,12 +94,11 @@ def index():
         if top_conf < CONFIDENCE_THRESHOLD:
             warning = "Prediction confidence too low. Please try another image."
         else:
-            pred_class = idx_to_class[top_idx]
+            pred_class_short = idx_to_class[top_idx]
+            pred_class = short_to_full.get(pred_class_short, pred_class_short)
             confidence = f"{top_conf * 100:.2f}%"
 
-    # Sort models for dropdown
     sorted_models = dict(sorted(MODELS.items()))
-
     return render_template('index.html',
                            filename=filename,
                            pred_class=pred_class,

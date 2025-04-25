@@ -37,8 +37,8 @@
           <div class="mb-3">
             <label for="model-select" class="form-label">Select Model</label>
             <select class="form-select" name="model" id="model-select" required>
-              {% for model in models %}
-                <option value="{{ model }}" {% if selected_model == model %}selected{% endif %}>{{ model|capitalize }}</option>
+              {% for model_key, model_name in models.items() %}
+                <option value="{{ model_key }}" {% if selected_model == model_key %}selected{% endif %}>{{ model_name }}</option>
               {% endfor %}
             </select>
           </div>
@@ -65,13 +65,14 @@
           </div>
           <div class="card-body text-center">
             <img src="{{ url_for('uploaded_file', filename=filename) }}" alt="Uploaded Image" class="img-fluid mb-3">
-            <h4 class="card-title">{{ pred_class }}</h4>
+            <h5 class="card-title">The above image sample belongs to:</h5>
+            <h4 class="text-primary">{{ pred_class }}</h4>
             <div class="progress mb-2" style="height: 1.5rem;">
               <div class="progress-bar" role="progressbar" style="width: {{ confidence[:-1] }}%;" aria-valuenow="{{ confidence[:-1] }}" aria-valuemin="0" aria-valuemax="100">
                 {{ confidence }}
               </div>
             </div>
-            <p class="text-muted mb-0">Model used: <strong>{{ selected_model|capitalize }}</strong></p>
+            <p class="text-muted mb-0">Model used: <strong>{{ models[selected_model] }}</strong></p>
             <a href="/" class="btn btn-outline-secondary mt-3">Classify Another</a>
           </div>
         </div>
